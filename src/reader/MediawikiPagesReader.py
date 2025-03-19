@@ -23,11 +23,12 @@ class MediawikiPagesReader(BaseReader):
         documents = []
         print("XXXXXXXXXX Initialzing Documents")
 
-        ns_whitelist = os.getenv("MEDIAWIKI_NAMESPACES").split(",")
+        ns_whitelist_str = os.getenv("MEDIAWIKI_NAMESPACES")
+        ns_whitelist = ns_whitelist_str.split(",") if ns_whitelist_str else []
         session = requests.Session()
         namespaces = self.get_namespaces(apiUrl)
-        print( ns_whitelist )
-        print( namespaces)
+        print(ns_whitelist)
+        print(namespaces)
         for ns_id, ns_name in namespaces.items():
             if str(ns_id) in ns_whitelist:
                 params = {
@@ -58,17 +59,24 @@ class MediawikiPagesReader(BaseReader):
                         for page in pages:
                             title = page["title"]
                             logger.debug(f"getting {title}")
-
+                            # Json of wikibase item:
+                            # http://wb.develop/wiki/Special:EntityData/Q1000.json
                             # Construct the URL with the correct format
                             page_url = f"{url}/{title}"  # Correctly format the URL with a "/" before the title
-                            #page_url = f"{url}/index.php?title={title}?action=raw"
+                            # strip "Item:" from the title
+                            page_url = f"{url}/Special:EntityData/{title.replace('Item:', '')}.json"
+                            print(page_url)
                             try:
                                 page_response = requests.get(page_url, headers=None)
+                                if page_response.status_code == 200:
+                                    # Create a Document object instead of using the raw text
+                                    doc = Document(text=page_response.text, doc_id=page_url)
+                                    documents.append(doc)
+                                    print(f"Added document for {title}")
+                                else:
+                                    print(f"Failed to get page {title}: HTTP {page_response.status_code}")
                             except Exception as e:
-                                print(e)
-
-                            chunklist = self.create_document_from_chunks(page_response, page_url)
-                            documents.extend(chunklist)
+                                print(f"Error retrieving {title}: {e}")
                     else:
                         logger.debug(f"No pages found for namespace {ns_id}. Response: {data}")
 
@@ -78,7 +86,6 @@ class MediawikiPagesReader(BaseReader):
                     params["apcontinue"] = data["continue"]["apcontinue"]
 
         return documents
-
 
 
     def get_single_page(self, apiUrl: str, pageUrl: str, **load_kwargs: Any):
@@ -115,7 +122,7 @@ class MediawikiPagesReader(BaseReader):
         soup = BeautifulSoup(response.text, "html.parser")
         documents = []
         logger.debug(f"Parsing document from {doc_id}. Response content: {response.text[:200]}...")  # Log the start of the response
-        for count, chunk in enumerate(soup.find_all("div", class_="wikibase-entitytermsview-heading-description"), start=1):
+        for count, chunk in enumerate(soup.find_all()):
             # remove sup elements
             for sup in chunk.find_all("sup"):
                 sup.decompose()
