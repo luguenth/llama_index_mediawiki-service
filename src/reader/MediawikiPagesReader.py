@@ -21,11 +21,13 @@ class MediawikiPagesReader(BaseReader):
     def init_document(self, apiUrl: str, url: str, **load_kwargs: Any) -> List[Document]:
         """Load data from the input directory."""
         documents = []
-        
+        print("XXXXXXXXXX Initialzing Documents")
+
         ns_whitelist = os.getenv("MEDIAWIKI_NAMESPACES").split(",")
         session = requests.Session()
         namespaces = self.get_namespaces(apiUrl)
-
+        print( ns_whitelist )
+        print( namespaces)
         for ns_id, ns_name in namespaces.items():
             if str(ns_id) in ns_whitelist:
                 params = {
@@ -48,7 +50,8 @@ class MediawikiPagesReader(BaseReader):
                     response = session.get(url=apiUrl, params=params)
                     logger.debug(f"Response for namespace {ns_id}: {response.json()}")
                     data = response.json()
-                    
+
+                    print(data)
                     # Check if "query" and "allpages" exist in the response
                     if "query" in data and "allpages" in data["query"]:
                         pages = data["query"]["allpages"]
@@ -58,8 +61,12 @@ class MediawikiPagesReader(BaseReader):
 
                             # Construct the URL with the correct format
                             page_url = f"{url}/{title}"  # Correctly format the URL with a "/" before the title
-                            page_response = requests.get(page_url, headers=None)
-                            
+                            #page_url = f"{url}/index.php?title={title}?action=raw"
+                            try:
+                                page_response = requests.get(page_url, headers=None)
+                            except Exception as e:
+                                print(e)
+
                             chunklist = self.create_document_from_chunks(page_response, page_url)
                             documents.extend(chunklist)
                     else:
@@ -108,12 +115,11 @@ class MediawikiPagesReader(BaseReader):
         soup = BeautifulSoup(response.text, "html.parser")
         documents = []
         logger.debug(f"Parsing document from {doc_id}. Response content: {response.text[:200]}...")  # Log the start of the response
-        for count, chunk in enumerate(soup.find_all("div", class_='chunks'), start=1):
+        for count, chunk in enumerate(soup.find_all("div", class_="wikibase-entitytermsview-heading-description"), start=1):
             # remove sup elements
             for sup in chunk.find_all("sup"):
                 sup.decompose()
             documents.append(Document(text=chunk.get_text(), doc_id=doc_id + f"chunk{count}"))
 
-        logger.debug(f"Found {len(documents)} chunks for {doc_id}.")  # Log the number of chunks found
+        print(f"Found {len(documents)} chunks for {doc_id}.")  # Log the number of chunks found
         return documents
-
