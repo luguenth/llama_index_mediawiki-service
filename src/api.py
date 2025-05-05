@@ -2,6 +2,7 @@ import time
 from flask import request, jsonify, stream_with_context
 import json
 from webhookParser import WebhookParser
+import html
 
 
 class MediawikiLLMAPI:
@@ -9,11 +10,9 @@ class MediawikiLLMAPI:
         @app.route('/query', methods=['GET'])
         def run_query():
             query = request.args.get('query')
-            print(query)
-            response = MediawikiLLM.query_engine.query(query)
-            print(response)
+            response = MediawikiLLM.query(query)
             return jsonify(response.response)
-
+            
         @app.route('/llm', methods=['GET'])
         def run_query_on_llm():
             query = request.args.get('query')

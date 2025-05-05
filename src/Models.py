@@ -1,12 +1,7 @@
-from llama_index import PromptTemplate
-from llama_index.llms import (
-    LlamaCPP,
-    HuggingFaceLLM
-)
-from llama_index.llms.llama_utils import (
-    messages_to_prompt,
-    completion_to_prompt,
-)
+from llama_index.core.prompts import RichPromptTemplate
+from llama_index.llms.llama_cpp import LlamaCPP
+from llama_index.llms.huggingface import HuggingFaceLLM
+
 
 
 class Models():
@@ -27,7 +22,7 @@ class Models():
 
     def CreateHuggingFaceLLM(model_name: str):
 
-        query_wrapper_prompt = PromptTemplate(
+        query_wrapper_prompt = RichPromptTemplate(
             "Below is an instruction that describes a task. "
             "Write a response that appropriately completes the request.\n\n"
             "### Instruction:\n{query_str}\n\n### Response:"
@@ -41,6 +36,15 @@ class Models():
             tokenizer_name=model_name,
             model_name=model_name,
             device_map="auto",
-            tokenizer_kwargs={"max_length": 2048},
+            tokenizer_kwargs={"max_length": 2048}
         )
         return llm
+
+    #def CreateAutoModelForCausalLM(model_name: str = None, model_path: str = None, model_type: str = None):
+    #    llm = AutoModelForCausalLM.from_pretrained(model_name, model_file=model_path, model_type="llama", gpu_layers=0)
+    #    return llm
+
+    def RemoteHF(model_name: str):
+        llm = HuggingFaceInferenceAPI(model_name=model_name,token="yourtoken")
+        return llm
+

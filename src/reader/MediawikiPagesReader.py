@@ -5,8 +5,8 @@ import os
 from typing import Any, Dict, List
 import html2text
 
-from llama_index.readers.base import BaseReader
-from llama_index.readers.schema.base import Document
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document
 import requests
 from bs4 import BeautifulSoup
 
@@ -25,7 +25,7 @@ class MediawikiPagesReader(BaseReader):
         ns_whitelist = os.getenv("MEDIAWIKI_NAMESPACES").split(",")
         session = requests.Session()
         namespaces = self.get_namespaces(apiUrl)
-
+        
         for ns_id, ns_name in namespaces.items():
             if str(ns_id) in ns_whitelist:
                 params = {
@@ -52,6 +52,7 @@ class MediawikiPagesReader(BaseReader):
                     # Check if "query" and "allpages" exist in the response
                     if "query" in data and "allpages" in data["query"]:
                         pages = data["query"]["allpages"]
+                        pagenr = 0
                         for page in pages:
                             title = page["title"]
                             logger.debug(f"getting {title}")
@@ -62,8 +63,11 @@ class MediawikiPagesReader(BaseReader):
                             
                             chunklist = self.create_document_from_chunks(page_response, page_url)
                             documents.extend(chunklist)
+                            pagenr = pagenr + 1
+                            if pagenr > 5:
+                                break
                     else:
-                        logger.debug(f"No pages found for namespace {ns_id}. Response: {data}")
+                        print(f"No pages found for namespace {ns_id}. Response: {data}")
 
                     if "continue" not in data:
                         break
@@ -107,13 +111,13 @@ class MediawikiPagesReader(BaseReader):
     def create_document_from_chunks(self, response, doc_id) -> List[Document]:
         soup = BeautifulSoup(response.text, "html.parser")
         documents = []
-        logger.debug(f"Parsing document from {doc_id}. Response content: {response.text[:200]}...")  # Log the start of the response
-        for count, chunk in enumerate(soup.find_all("div", class_='chunks'), start=1):
+        #print(f"Parsing document from {doc_id}. Response content: {response.text[:200]}...")  # Log the start of the response
+        for count, chunk in enumerate(soup.find_all("td"), start=1):
             # remove sup elements
             for sup in chunk.find_all("sup"):
                 sup.decompose()
             documents.append(Document(text=chunk.get_text(), doc_id=doc_id + f"chunk{count}"))
 
-        logger.debug(f"Found {len(documents)} chunks for {doc_id}.")  # Log the number of chunks found
+        print(f"Found {len(documents)} chunks for {doc_id}.")  # Log the number of chunks found
         return documents
 

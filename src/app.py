@@ -18,7 +18,9 @@ MWLLM = MediawikiLLM(
 )
 
 logger.debug("MediawikiLLM instance created.")
-MWLLM.init_from_mediawiki()
+#MWLLM.init_from_mediawiki()
+MWLLM.init_from_wikibase()
+
 logger.debug("MediawikiLLM initialized from MediaWiki.")
 
 # Create the Flask app instance
