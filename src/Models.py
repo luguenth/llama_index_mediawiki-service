@@ -42,7 +42,7 @@ class Models():
 
     #def CreateAutoModelForCausalLM(model_name: str = None, model_path: str = None, model_type: str = None):
     #    llm = AutoModelForCausalLM.from_pretrained(model_name, model_file=model_path, model_type="llama", gpu_layers=0)
-    #    return llm
+    #    return  llm
 
     def RemoteHF(model_name: str):
         llm = HuggingFaceInferenceAPI(model_name=model_name,token="yourtoken")

@@ -16,6 +16,8 @@ RUN pip install llama-index-vector-stores-elasticsearch
 
 RUN pip install flask[async] nest_asyncio
 
+RUN pip install llama-index-llms-ollama
+
 #RUN pip install accelerate
 
 #RUN pip install -r requirements.txt

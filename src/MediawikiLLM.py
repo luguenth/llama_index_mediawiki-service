@@ -9,6 +9,7 @@ from DocumentClass import DocumentClass
 import faiss
 from llama_index.core import PropertyGraphIndex
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.llms.huggingface import HuggingFaceLLM
 from WikibasePropertyGraph import WikibasePropertyGraphStore
 from llama_index.vector_stores.elasticsearch import ElasticsearchStore
 import json
@@ -39,21 +40,48 @@ class MediawikiLLM:
         #llm = Models.CreateHuggingFaceLLM(model_name="TheBloke/em_german_7b_v01-GGUF")
         #llm = Models.CreateHuggingFaceLLM(model_name="meta-llama/Llama-2-7b-chat-hf")
 
+
+        #llm = HuggingFaceLLM(
+        #    model_name="Qwen/Qwen3-1.7B",
+        #    tokenizer_name="Qwen/Qwen3-1.7B",
+        #    context_window=4096,
+        #    max_new_tokens=128,
+            #generate_kwargs={"temperature": 0.7, "top_k": 50, "top_p": 0.95},
+            #tokenizer_kwargs={"enable_thinking":False},
+        #    generate_kwargs={"n_threads": 16, "use_fp8": True},
+        #    messages_to_prompt=self.messages_to_prompt,
+        #    completion_to_prompt=self.completion_to_prompt,
+        #    device_map="auto",
+        #)
+
         #llm = Models.CreateAutoModelForCausalLM(model_name=os.getenv("MODEL_PATH"), model_path=os.getenv("MODEL_PATH"))
         #llm = llm = AutoModelForCausalLM.from_pretrained("TheBloke/em_german_7b_v01-GGUF", model_file="em_german_7b_v01.Q2_K.gguf", model_type="llama", gpu_layers=0)
 
         from llama_index.llms.llama_cpp import LlamaCPP
 
-        query_wrapper_prompt = RichPromptTemplate("Du bist ein hilfreicher Assistent. USER: {query_str} ASSISTANT:") 
-        llm = LlamaCPP(
-            model_path=os.getenv("MODEL_PATH"),
-            temperature=0.0,
-            max_new_tokens=128,
-            context_window=4096,
-            generate_kwargs={},
-            model_kwargs={"n_gpu_layers": 0, "n_threads": 16, "use_fp8": True},
-            verbose=True,
-        )
+        #query_wrapper_prompt = RichPromptTemplate("Du bist ein hilfreicher Assistent. USER: {query_str} ASSISTANT:") 
+        #llm = LlamaCPP(
+        #    model_path=os.getenv("MODEL_PATH"),
+        #    temperature=0.0,
+        #    max_new_tokens=128,
+        #    context_window=4096,
+        #    generate_kwargs={},
+        #    model_kwargs={"n_gpu_layers": 0, "n_threads": 16, "use_fp8": True},
+        #    verbose=True,
+        #)
+
+        from llama_index.llms.ollama import Ollama
+
+        import requests
+
+        # Pull a model (e.g., llama3)
+        response = requests.post("http://ollama-llm:11434/api/pull", json={"name": "llama3"})
+
+        # Check result
+        print(response.text)
+
+        llm = Ollama(model="llama3", request_timeout=120.0, base_url="http://ollama-llm:11434", additional_kwargs={"temperature":0, "num_thread": 16})
+        
         #from transformers import AutoConfig
         #config = AutoConfig.from_pretrained("TheBloke/em_german_7b_v01-GGUF")
         #llm = AutoModelForCausalLM.from_pretrained("TheBloke/em_german_7b_v01-GGUF", model_file="em_german_7b_v01.Q4_K_M.gguf", model_type="llama", gpu_layers=0,
@@ -66,7 +94,26 @@ class MediawikiLLM:
 
         
         Settings.chunk_size=4096
-        
+    
+    def completion_to_prompt(self, completion):
+        return f"<|im_start|>system\n<|im_end|>\n<|im_start|>user\n{completion}<|im_end|>\n<|im_start|>assistant\n"
+
+    def messages_to_prompt(self, messages):
+        prompt = ""
+        for message in messages:
+            if message.role == "system":
+                prompt += f"<|im_start|>system\n{message.content}<|im_end|>\n"
+            elif message.role == "user":
+                prompt += f"<|im_start|>user\n{message.content}<|im_end|>\n"
+            elif message.role == "assistant":
+                prompt += f"<|im_start|>assistant\n{message.content}<|im_end|>\n"
+
+        if not prompt.startswith("<|im_start|>system"):
+            prompt = "<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n" + prompt
+
+        prompt = prompt + "<|im_start|>assistant\n"
+
+        return prompt
 
     def init_from_mediawiki(self):
         #set_global_service_context(self.service_context)
