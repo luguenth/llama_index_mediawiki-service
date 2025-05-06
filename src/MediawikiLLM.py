@@ -11,8 +11,8 @@ from llama_index.core import PropertyGraphIndex
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from WikibasePropertyGraph import WikibasePropertyGraphStore
 from llama_index.vector_stores.elasticsearch import ElasticsearchStore
-import asyncio
 import json
+
 
 class MediawikiLLM:
     mediawiki_url = None
@@ -27,7 +27,7 @@ class MediawikiLLM:
     def __init__(self, mediawiki_url, api_url):
         import logging
         import sys
-
+        
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
         self.mediawiki_url = mediawiki_url
@@ -101,7 +101,7 @@ class MediawikiLLM:
             es_user="elastic",
             es_password="changeme",
             index_name="wiki-llm-vectorstore",
-            use_async=True
+            use_async=False
         )
         #vector_store = FaissVectorStore(faiss_index=faiss_index)
         store_file = "propertyGraphStoreDump.json"
@@ -182,8 +182,12 @@ class MediawikiLLM:
         #)
 
     def query(self, query:str):
-        #print(query)
         response = self.query_engine.query(query)
+        print(response)
+        return response
+    
+    async def aquery(self, query:str):
+        response = await self.query_engine.aquery(query)
         print(response)
         return response
     

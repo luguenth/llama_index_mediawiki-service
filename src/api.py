@@ -4,13 +4,25 @@ import json
 from webhookParser import WebhookParser
 import html
 
+# wird verwendet, um es zu ermöglichen, dass ein bereits laufender asyncio-Eventloop erneut verwendet werden kann (avoid runtime error "detected nested async")
+import asyncio
+import nest_asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 class MediawikiLLMAPI:
     def __init__(self, app,  MediawikiLLM):
+        nest_asyncio.apply()
+        self.MediawikiLLM = MediawikiLLM
+        self.executor = ThreadPoolExecutor()
+
         @app.route('/query', methods=['GET'])
-        def run_query():
+        async def run_query():
             query = request.args.get('query')
-            response = MediawikiLLM.query(query)
+            #response = await MediawikiLLM.query(query)
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                self.executor, lambda: self.MediawikiLLM.query(query)
+            )
             return jsonify(response.response)
             
         @app.route('/llm', methods=['GET'])
