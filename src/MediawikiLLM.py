@@ -205,9 +205,9 @@ class MediawikiLLM:
                 include_text=True,
                 include_properties = True,
                 # the number of nodes to fetch
-                similarity_top_k=3,
+                similarity_top_k=1,
                 # the depth of relations to follow after node retrieval
-                path_depth=2,)
+                path_depth=1,)
             #LLMSynonymRetriever(graph_store),
         ]
 
@@ -234,23 +234,30 @@ class MediawikiLLM:
         #    graph_rag_retriever,
         #)
 
-    def query(self, query:str):
-        sub_retrievers = [
-            VectorContextRetriever(
-                self.graph_store, 
-                embed_model=Settings.embed_model, 
-                vector_store=self.vector_store,
+    def query(self, query:str, similarity_top_k=1, path_depth=1, show_thinking:bool=False):
+        print(similarity_top_k)
+        print(path_depth)
+        #sub_retrievers = [
+        #    VectorContextRetriever(
+        #        self.graph_store, 
+        #        embed_model=Settings.embed_model, 
+        #        vector_store=self.vector_store,
                  # include source chunk text with retrieved paths
-                include_text=True,
-                include_properties = True,
+        #        include_text=True,
+        #        include_properties = True,
                 # the number of nodes to fetch
-                similarity_top_k=1,
+        #        similarity_top_k=int(similarity_top_k),
                 # the depth of relations to follow after node retrieval
-                path_depth=1)
+        #        path_depth=int(path_depth))
             #LLMSynonymRetriever(graph_store),
-        ]
-
-        self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
+        #]
+        
+        if show_thinking:
+            query = query + " /think"
+        else:
+            query = query + " /no_think"
+        print(query)
+        #self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
         response = self.query_engine.query(query)
         print(response)
         return response

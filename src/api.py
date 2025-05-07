@@ -18,10 +18,15 @@ class MediawikiLLMAPI:
         @app.route('/query', methods=['GET'])
         async def run_query():
             query = request.args.get('query')
+            similarity_top_k = request.args.get('similarity_top_k')
+            path_depth = request.args.get('path_depth')
+            show_thinking_raw = request.args.get('show_thinking')
+            # Convert the string to a real boolean
+            show_thinking = show_thinking_raw.lower() in ['true', '1', 'yes', 'on']
             #response = await MediawikiLLM.query(query)
             loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
-                self.executor, lambda: self.MediawikiLLM.query(query)
+                self.executor, lambda: self.MediawikiLLM.query(query, similarity_top_k, path_depth, show_thinking)
             )
             return jsonify(response.response)
             
