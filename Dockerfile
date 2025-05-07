@@ -14,7 +14,7 @@ RUN pip install wikibaseintegrator
 
 RUN pip install llama-index-vector-stores-elasticsearch
 
-RUN pip install flask[async] nest_asyncio
+RUN pip install flask[async] asyncio nest_asyncio
 
 RUN pip install llama-index-llms-ollama
 

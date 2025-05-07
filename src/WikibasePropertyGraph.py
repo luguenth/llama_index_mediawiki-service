@@ -59,6 +59,7 @@ class WikibasePropertyGraphStore(SimplePropertyGraphStore):
         graph_nodes = []
         graph_relations = []
         for item_id in self.wb_items:
+            """ add wikibase items to graph"""
             wbitem = self.wb_items[item_id]
             
             node_name = self.getWikibaseItemName(wbitem)
@@ -76,7 +77,8 @@ class WikibasePropertyGraphStore(SimplePropertyGraphStore):
             embedding = self.embed_model.get_text_embedding( embeddingtext )
             node.embedding = embedding
             graph_nodes.append(node)
-            
+            if item_id == "Q4950":
+                print(wbitem['claims'])
             """ process wikibase item statements """  
             for pid in wbitem['claims']:
                 for claim_dict in wbitem['claims'][pid]:
@@ -109,9 +111,17 @@ class WikibasePropertyGraphStore(SimplePropertyGraphStore):
                                 properties = relation_properties #TODO: add claim qualifier as properties
                             )
                             graph_relations.append(relation)
+                            #add relation also as property as llama_index is not using the propery part of triples in VectorcontextRetriever( 7.5.2025)
+                            label = self.getWikibaseItemName(self.wb_properties[claim_dict['mainsnak']['property']])
+                            value = self.getWikibaseItemName(self.wb_items[claim_dict['mainsnak']['datavalue']['value']['id']])
+                            if label not in node.properties:
+                                node.properties[label] = []
+                            node.properties[label].append(value) # a statement can occur multiple times with different values
+                        
                         else:
                             """ insert value statements as properties """
-                            label = claim_dict['mainsnak']['property']
+                            # values cannot be displayed as relations as the value has is no unique entry in the db, featuring a target id
+                            label = self.getWikibaseItemName(self.wb_properties[claim_dict['mainsnak']['property']])
                             value = claim_dict['mainsnak']['datavalue']['value']
                             if label not in node.properties:
                                 node.properties[label] = []
@@ -169,13 +179,13 @@ class WikibasePropertyGraphStore(SimplePropertyGraphStore):
         result = [graph_nodes, vectorstore_result.similarities]
         
         #print(result)
-        kg_ids = [node.id for node in graph_nodes]
-        triplets = self.get_rel_map(
-                graph_nodes,
-                depth=1,
-                limit=2,
-                ignore_rels=[KG_SOURCE_REL],
-            )
+        #kg_ids = [node.id for node in graph_nodes]
+        #triplets = self.get_rel_map(
+        #        graph_nodes,
+        #        depth=1,
+        #        limit=2,
+        #        ignore_rels=[KG_SOURCE_REL],
+        #    )
         #print(triplets)
         return result
     

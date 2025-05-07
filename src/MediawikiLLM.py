@@ -13,6 +13,11 @@ from llama_index.llms.huggingface import HuggingFaceLLM
 from WikibasePropertyGraph import WikibasePropertyGraphStore
 from llama_index.vector_stores.elasticsearch import ElasticsearchStore
 import json
+from llama_index.core.indices.property_graph import (
+            PGRetriever,
+            VectorContextRetriever,
+            LLMSynonymRetriever,
+        )
 
 
 class MediawikiLLM:
@@ -57,7 +62,7 @@ class MediawikiLLM:
         #llm = Models.CreateAutoModelForCausalLM(model_name=os.getenv("MODEL_PATH"), model_path=os.getenv("MODEL_PATH"))
         #llm = llm = AutoModelForCausalLM.from_pretrained("TheBloke/em_german_7b_v01-GGUF", model_file="em_german_7b_v01.Q2_K.gguf", model_type="llama", gpu_layers=0)
 
-        from llama_index.llms.llama_cpp import LlamaCPP
+        #from llama_index.llms.llama_cpp import LlamaCPP
 
         #query_wrapper_prompt = RichPromptTemplate("Du bist ein hilfreicher Assistent. USER: {query_str} ASSISTANT:") 
         #llm = LlamaCPP(
@@ -74,13 +79,14 @@ class MediawikiLLM:
 
         import requests
 
-        # Pull a model (e.g., llama3)
-        response = requests.post("http://ollama-llm:11434/api/pull", json={"name": "llama3"})
+        # Pull a model (e.g., llama3, qwen3)
+        model_name = "qwen3:0.6B"
+        response = requests.post("http://ollama-llm:11434/api/pull", json={"name": model_name})
 
         # Check result
         print(response.text)
 
-        llm = Ollama(model="llama3", request_timeout=120.0, base_url="http://ollama-llm:11434", additional_kwargs={"temperature":0, "num_thread": 16})
+        llm = Ollama(model=model_name, request_timeout=120.0, base_url="http://ollama-llm:11434", additional_kwargs={"temperature":0, "num_thread": 16})
         
         #from transformers import AutoConfig
         #config = AutoConfig.from_pretrained("TheBloke/em_german_7b_v01-GGUF")
@@ -180,6 +186,8 @@ class MediawikiLLM:
             with open(store_file, "w") as f:
                 f.write(data)
         
+        self.graph_store = graph_store
+        self.vector_store = vector_store
         self.wb_index = PropertyGraphIndex.from_existing(
             property_graph_store=graph_store,
             llm=Settings.llm
@@ -188,39 +196,37 @@ class MediawikiLLM:
         #print( nodes )
         #self.wb_index._insert_nodes_to_vector_index( nodes )
 
-        from llama_index.core.indices.property_graph import (
-            PGRetriever,
-            VectorContextRetriever,
-            LLMSynonymRetriever,
-        )
-
         sub_retrievers = [
             VectorContextRetriever(
-                graph_store, 
+                self.graph_store, 
                 embed_model=Settings.embed_model, 
-                vector_store=vector_store,
+                vector_store=self.vector_store,
                  # include source chunk text with retrieved paths
                 include_text=True,
                 include_properties = True,
                 # the number of nodes to fetch
-                similarity_top_k=1,
+                similarity_top_k=3,
                 # the depth of relations to follow after node retrieval
-                path_depth=1,)
+                path_depth=2,)
             #LLMSynonymRetriever(graph_store),
         ]
 
         self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
 
         #retriever = PGRetriever(sub_retrievers=sub_retrievers)
-
         #nodes = retriever.retrieve("Sidonia von Borcke")
         #print("retrieved nodes:"+str(nodes))
+
         #from llama_index.core.query_engine import RetrieverQueryEngine
         #from llama_index.core.retrievers import KnowledgeGraphRAGRetriever
-        #graph_store = WikibasePropertyGraphStore(os.getenv("MEDIAWIKI_API_URL"),os.getenv("MEDIAWIKI_USERNAME"),os.getenv("MEDIAWIKI_USERPASS"), embed_model=Settings.embed_model)
         #storage_context = StorageContext.from_defaults(graph_store=graph_store)
         #graph_rag_retriever = KnowledgeGraphRAGRetriever(
         #    storage_context=storage_context,
+        #    llm=llm,
+        #    retriever_mode="keyword",
+        #    graph_traversal_depth=2, #default 2
+        #    max_knowledge_sequence=30, #default 30
+        #    max_entities=5, #default 5
         #    verbose=True,
         #)
 
@@ -229,6 +235,22 @@ class MediawikiLLM:
         #)
 
     def query(self, query:str):
+        sub_retrievers = [
+            VectorContextRetriever(
+                self.graph_store, 
+                embed_model=Settings.embed_model, 
+                vector_store=self.vector_store,
+                 # include source chunk text with retrieved paths
+                include_text=True,
+                include_properties = True,
+                # the number of nodes to fetch
+                similarity_top_k=1,
+                # the depth of relations to follow after node retrieval
+                path_depth=1)
+            #LLMSynonymRetriever(graph_store),
+        ]
+
+        self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
         response = self.query_engine.query(query)
         print(response)
         return response
