@@ -22,13 +22,16 @@ class MediawikiLLMAPI:
             path_depth = request.args.get('path_depth')
             show_thinking_raw = request.args.get('show_thinking')
             # Convert the string to a real boolean
-            show_thinking = show_thinking_raw.lower() in ['true', '1', 'yes', 'on']
+            if show_thinking_raw:
+                show_thinking = show_thinking_raw.lower() in ['true', '1', 'yes', 'on']
+            else:
+                show_thinking = None
             #response = await MediawikiLLM.query(query)
             loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 self.executor, lambda: self.MediawikiLLM.query(query, similarity_top_k, path_depth, show_thinking)
             )
-            return jsonify(response.response)
+            return jsonify(response)
             
         @app.route('/llm', methods=['GET'])
         def run_query_on_llm():

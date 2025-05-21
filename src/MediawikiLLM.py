@@ -1,26 +1,27 @@
 import os
 import time
 from llama_index.core import Settings, StorageContext, VectorStoreIndex, load_index_from_storage
-from llama_index.vector_stores.faiss import FaissVectorStore
-from llama_index.core.prompts import RichPromptTemplate
+
 import llama_index
 from Models import Models
 from DocumentClass import DocumentClass
-import faiss
+#import faiss
 from llama_index.core import PropertyGraphIndex
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.huggingface import HuggingFaceLLM
+
 from WikibasePropertyGraph import WikibasePropertyGraphStore
 from llama_index.vector_stores.elasticsearch import ElasticsearchStore
 import json
 from llama_index.core.indices.property_graph import (
-            PGRetriever,
             VectorContextRetriever,
             LLMSynonymRetriever,
         )
 
+from llama_index.core.prompts import RichPromptTemplate
 
 class MediawikiLLM:
+    MODEL_PROVIDER_OLLAMA = "ollama"
+    MODEL_PROVIDER_GWDG_SAIA = "gwdg_saia"
     mediawiki_url = None
     api_url = None
 
@@ -75,30 +76,30 @@ class MediawikiLLM:
         #    verbose=True,
         #)
 
-        from llama_index.llms.ollama import Ollama
-
-        import requests
-
-        # Pull a model (e.g., llama3, qwen3)
-        model_name = "qwen3:0.6B"
-        response = requests.post("http://ollama-llm:11434/api/pull", json={"name": model_name})
-
-        # Check result
-        print(response.text)
-
-        llm = Ollama(model=model_name, request_timeout=120.0, base_url="http://ollama-llm:11434", additional_kwargs={"temperature":0, "num_thread": 16})
+        print("Model provider: "+os.getenv("MODEL_PROVIDER"))
+        print("Model name: "+ os.getenv("MODEL_NAME"))
+        print("Ollama url: "+os.getenv("OLLAMA_URL"))
+        self.model_provider = os.getenv("MODEL_PROVIDER").lower()
+        if not self.model_provider or self.model_provider == self.MODEL_PROVIDER_OLLAMA:
+            Settings.llm = Models.CreateOllamaModel(
+                model_name=os.getenv("MODEL_NAME"),
+                timeout=120.0,
+                url=os.getenv("OLLAMA_URL"),
+                parameter={"temperature":0, "num_thread": 16}
+            )  
+        elif self.model_provider == self.MODEL_PROVIDER_GWDG_SAIA:
+            Settings.llm = Models.callCreateOpenAIModel(
+                model_name=os.getenv("MODEL_NAME"),
+                api_key = os.getenv("GWDG_SAIA_KEY"),
+                api_url = os.getenv("GWDG_SAIA_URL"),
+                max_completion_tokens=os.getenv("GWDG_SAIA_MAXTOKENS"),
+            )
+        else:
+            Settings.llm = None
         
-        #from transformers import AutoConfig
-        #config = AutoConfig.from_pretrained("TheBloke/em_german_7b_v01-GGUF")
-        #llm = AutoModelForCausalLM.from_pretrained("TheBloke/em_german_7b_v01-GGUF", model_file="em_german_7b_v01.Q4_K_M.gguf", model_type="llama", gpu_layers=0,
-        #    system_prompt=query_wrapper_prompt)
-        
-        Settings.llm = llm
         #Settings.embed_model = "local"
         #Settings.model_name = "em_german_7b_v01.Q2_K.gguf"
         Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
-
-        
         Settings.chunk_size=4096
     
     def completion_to_prompt(self, completion):
@@ -124,9 +125,16 @@ class MediawikiLLM:
     def init_from_mediawiki(self):
         #set_global_service_context(self.service_context)
 
-        d = 1536
-        faiss_index = faiss.IndexFlatL2(d)
-        vector_store = FaissVectorStore(faiss_index=faiss_index)
+        #d = 1536
+        #faiss_index = faiss.IndexFlatL2(d)
+        #vector_store = FaissVectorStore(faiss_index=faiss_index)
+        vector_store = ElasticsearchStore(
+            es_url="http://elasticsearch-llm:9200",#os.getenv("ELASTICSEARCH_URL"),  # see Elasticsearch Vector Store for more authentication options
+            es_user="elastic",
+            es_password="changeme",
+            index_name="wiki-llm-vectorstore-mediawikipages",
+            use_async=False
+        )
 
         if os.path.isdir(str(os.getenv("PERSISTENT_STORAGE_DIR"))):
             storage_context = StorageContext.from_defaults(
@@ -145,9 +153,9 @@ class MediawikiLLM:
 
     def init_from_wikibase(self):
 
-        d = 384
+        #d = 384
         #d = 768
-        faiss_index = faiss.IndexFlatL2(d)
+        #faiss_index = faiss.IndexFlatL2(d)
         
         vector_store = ElasticsearchStore(
             es_url="http://elasticsearch-llm:9200",#os.getenv("ELASTICSEARCH_URL"),  # see Elasticsearch Vector Store for more authentication options
@@ -195,9 +203,7 @@ class MediawikiLLM:
         #nodes = graph_store.get()
         #print( nodes )
         #self.wb_index._insert_nodes_to_vector_index( nodes )
-
-        sub_retrievers = [
-            VectorContextRetriever(
+        self.wb_vectorRetriever = VectorContextRetriever(
                 self.graph_store, 
                 embed_model=Settings.embed_model, 
                 vector_store=self.vector_store,
@@ -208,10 +214,19 @@ class MediawikiLLM:
                 similarity_top_k=1,
                 # the depth of relations to follow after node retrieval
                 path_depth=1,)
+        
+        sub_retrievers = [
+            self.wb_vectorRetriever
             #LLMSynonymRetriever(graph_store),
         ]
 
         self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
+
+        if os.getenv("PROMPT"):
+            qa_tmpl = RichPromptTemplate(os.getenv("PROMPT"))
+            QA_PROMPT_KEY = "response_synthesizer:text_qa_template"
+            self.query_engine.update_prompts({QA_PROMPT_KEY: qa_tmpl})
+
 
         #retriever = PGRetriever(sub_retrievers=sub_retrievers)
         #nodes = retriever.retrieve("Sidonia von Borcke")
@@ -237,30 +252,47 @@ class MediawikiLLM:
     def query(self, query:str, similarity_top_k=1, path_depth=1, show_thinking:bool=False):
         print(similarity_top_k)
         print(path_depth)
-        #sub_retrievers = [
-        #    VectorContextRetriever(
-        #        self.graph_store, 
-        #        embed_model=Settings.embed_model, 
-        #        vector_store=self.vector_store,
-                 # include source chunk text with retrieved paths
-        #        include_text=True,
-        #        include_properties = True,
-                # the number of nodes to fetch
-        #        similarity_top_k=int(similarity_top_k),
-                # the depth of relations to follow after node retrieval
-        #        path_depth=int(path_depth))
-            #LLMSynonymRetriever(graph_store),
-        #]
-        
+   
+        self.wb_vectorRetriever.similarity_top_k = similarity_top_k
+        self.wb_vectorRetriever.path_depth = path_depth
+        #TODO: implement node retrieval only once (now its fetched two times, here and within query_engine.query())
+        retrieved_nodes = self.wb_vectorRetriever.retrieve(query)
+
         if show_thinking:
             query = query + " /think"
         else:
             query = query + " /no_think"
         print(query)
+        
+        
+
         #self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
+        #if self.model_provider == self.MODEL_PROVIDER_OLLAMA:
+
         response = self.query_engine.query(query)
+        #elif self.model_provider == self.MODEL_PROVIDER_GWDG_SAIA:
+            #retrieve nodes
+        #    nodes = self.wb_vectorRetriever.retrieve(query)
+            #create response via SAIA
+            # Get response
+        #chat_completion = llm.chat(
+        #    messages=[
+        #        ChatMessage(role="system",content="You are a helpful assistant. use this context to answer:"+str(context)),
+        #        ChatMessage(role="user",content=query)
+        #    ],
+        #    model= os.getenv("MODEL_NAME")
+        #)
         print(response)
-        return response
+        result = {
+            "answer": str(response),
+            "source_content": [
+                {
+                    "text": node.node.text,
+                    "score": node.score
+                } for node in retrieved_nodes
+            ]
+        }
+        return result
     
     async def aquery(self, query:str):
         response = await self.query_engine.aquery(query)
