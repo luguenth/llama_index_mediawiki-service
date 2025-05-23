@@ -1,5 +1,8 @@
 FROM python:3.11
 
+ARG MODEL_PROVIDER
+ENV MODEL_PROVIDER=${MODEL_PROVIDER}
+
 COPY src/requirements.txt /app/
 
 WORKDIR /app
@@ -7,8 +10,6 @@ WORKDIR /app
 #RUN pip install llama-cpp-python
 
 RUN pip install beautifulsoup4 html2text llama_index Requests 
-
-#Flask Flask_Cors
 
 RUN pip install uvicorn fastapi
 
@@ -20,14 +21,13 @@ RUN pip install wikibaseintegrator
 
 RUN pip install llama-index-vector-stores-elasticsearch
 
-#RUN pip install flask[async] asyncio nest_asyncio
-
-RUN pip install llama-index-llms-ollama
-
-#RUN pip install llama-index-llms-openai
-
-RUN pip install llama-index-llms-openai-like
-
-#RUN pip install accelerate
+# Conditionally install extras
+RUN if [ "$MODEL_PROVIDER" = "ollama" ]; then \
+      echo "Installing Ollama dependencies for local model execution..."; \
+      pip install llama-index-llms-ollama; \
+    elif [ "$MODEL_PROVIDER" = "gwdg_saia" ]; then \
+      echo "Installing GWDG-SAIA dependencies for remote model execution..."; \
+      pip install llama-index-llms-openai-like; \
+    fi
 
 #RUN pip install -r requirements.txt

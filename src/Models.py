@@ -1,14 +1,17 @@
 #from llama_index.core.prompts import RichPromptTemplate
 #from llama_index.llms.llama_cpp import LlamaCPP
 #from llama_index.llms.huggingface import HuggingFaceLLM
-from llama_index.llms.ollama import Ollama
+
 import requests
 import os
-from llama_index.llms.openai_like import OpenAILike
+
 
 from llama_index.core.llms import ChatMessage
 class Models():
+
+
     def CreateOllamaModel(model_name="qwen3:0.6B",timeout=120.0, url="http://ollama-llm:11434", parameter={"num_thread": 16}):
+        from llama_index.llms.ollama import Ollama
         # Pull a model (e.g., llama3, qwen3:0.6B)
         response = requests.post(url+"/api/pull", json={"name": model_name})
         # Check result
@@ -17,7 +20,7 @@ class Models():
         return llm
 
     def callCreateOpenAIModel(model_name="qwen3-32b", api_url=None, api_key=None, max_completion_tokens=None):
-       
+        from llama_index.llms.openai_like import OpenAILike
         # Start OpenAI client
         llm = OpenAILike(
             model=os.getenv("MODEL_NAME"),
