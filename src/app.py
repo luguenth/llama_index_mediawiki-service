@@ -1,40 +1,44 @@
 import os
-from flask import Flask
-from flask_cors import CORS
-from MediawikiLLM import MediawikiLLM  # Import the MediawikiLLM class
-from api import MediawikiLLMAPI  # Import the API class to manage Flask routes
-from dotenv import load_dotenv  # To load environment variables from a .env file
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+from api import MediawikiLLMAPI, router
+from MediawikiLLM import MediawikiLLM
 from logger import logger
 
-# Load environment variables from a .env file
 load_dotenv()
 
 logger.debug("Starting MediawikiLLM initialization...")
 
-# Initialize the MediawikiLLM class with the MediaWiki URLs from the environment variables
 MWLLM = MediawikiLLM(
-    os.getenv("MEDIAWIKI_URL"),  # MediaWiki URL
-    os.getenv("MEDIAWIKI_API_URL")  # MediaWiki API URL
+    os.getenv("MEDIAWIKI_URL"),
+    os.getenv("MEDIAWIKI_API_URL")
 )
 
 logger.debug("MediawikiLLM instance created.")
-#MWLLM.init_from_mediawiki()
 MWLLM.init_from_wikibase()
+logger.debug("MediawikiLLM initialized from Wikibase.")
 
-logger.debug("MediawikiLLM initialized from MediaWiki.")
+# ✅ Create FastAPI app instance
+app = FastAPI()
 
-# Create the Flask app instance
-app = Flask(__name__)
+# ✅ Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Enable Cross-Origin Resource Sharing (CORS) for the Flask app
-CORS(app)
+# ✅ Pass the app to register routes
+MediawikiLLMAPI(MWLLM)
+app.include_router(router)  # ✅ Register the routes with FastAPI
 
-# Initialize the API routes by passing the Flask app and the MediawikiLLM instance
-api = MediawikiLLMAPI(app, MWLLM)
+logger.debug("FastAPI app initialized and routes set.")
 
-logger.debug("Flask app initialized and routes set.")
-
-# If you run the app.py directly, it starts the Flask server
-if __name__ == '__main__':
-    print("Starting Flask server...")
-    app.run(host="0.0.0.0", port=5000, debug=True)  # Enable debug for detailed logging
+if __name__ == "__main__":
+    import uvicorn
+    print("Starting FastAPI server...")
+    uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)

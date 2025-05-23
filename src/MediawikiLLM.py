@@ -264,24 +264,23 @@ class MediawikiLLM:
             query = query + " /no_think"
         print(query)
         
-        
-
         #self.query_engine = self.wb_index.as_query_engine(sub_retrievers=sub_retrievers)
-        #if self.model_provider == self.MODEL_PROVIDER_OLLAMA:
+        #response = self.query_engine.query(query)
+        response = self.aquery(query)
+        return self.formatLLMResponse(response, retrieved_nodes)
+    
+    async def aquery(self, query:str, similarity_top_k=1, path_depth=1, show_thinking:bool=False):
+        print(query)
+        self.wb_vectorRetriever.similarity_top_k = similarity_top_k
+        self.wb_vectorRetriever.path_depth = path_depth
+        #TODO: implement node retrieval only once (now its fetched two times, here and within query_engine.query())
+        retrieved_nodes = self.wb_vectorRetriever.retrieve(query)
+    
+        response = await self.query_engine.aquery(query)
+        print(response)
+        return self.formatLLMResponse(response, retrieved_nodes)
 
-        response = self.query_engine.query(query)
-        #elif self.model_provider == self.MODEL_PROVIDER_GWDG_SAIA:
-            #retrieve nodes
-        #    nodes = self.wb_vectorRetriever.retrieve(query)
-            #create response via SAIA
-            # Get response
-        #chat_completion = llm.chat(
-        #    messages=[
-        #        ChatMessage(role="system",content="You are a helpful assistant. use this context to answer:"+str(context)),
-        #        ChatMessage(role="user",content=query)
-        #    ],
-        #    model= os.getenv("MODEL_NAME")
-        #)
+    def formatLLMResponse(self, response, retrieved_nodes):
         print(response)
         result = {
             "answer": str(response),
@@ -293,11 +292,6 @@ class MediawikiLLM:
             ]
         }
         return result
-    
-    async def aquery(self, query:str):
-        response = await self.query_engine.aquery(query)
-        print(response)
-        return response
     
     def init_no_documents(self):
         self.mw_index = llama_index.indices.empty.EmptyIndex()
